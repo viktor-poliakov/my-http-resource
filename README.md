@@ -1,59 +1,86 @@
-# MyHttp
+# MyHttpResource
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.5.
+[![npm version](https://img.shields.io/npm/v/my-http-resource.svg)](https://www.npmjs.com/package/my-http-resource)
+![Angular](https://img.shields.io/badge/angular-17%2B-red)
+![RxJS](https://img.shields.io/badge/RxJS-7%2B-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+`MyHttpResource` is a small wrapper around Angular’s `HttpClient` that turns an endpoint into a **resource**. You describe the request once and get `loading`, `value` and `error` as signals, plus two ways to run the request.
 
 ```bash
-ng generate component component-name
+npm install my-http-resource
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+```ts
+import { Injectable } from '@angular/core';
+import { myHttpResource } from 'my-http-resource';
+
+@Injectable({ providedIn: 'root' })
+export class PostsService {
+  public posts = myHttpResource().get<IPost[]>({ url: '/api/posts', initialValue: [] });
+}
+
+// posts.value()   → IPost[]
+// posts.loading() → boolean
+// posts.error()   → unknown
+// posts.fetch()   → sends the request again
+```
+
+📖 **Full documentation:** [projects/my-http-resource/README.md](projects/my-http-resource/README.md)
+
+---
+
+## What is in this repository
+
+| Path | What it is |
+|---|---|
+| [`projects/my-http-resource`](projects/my-http-resource) | The library that is published to npm. |
+| [`src`](src) | A demo application that uses the library. |
+| `dist/my-http-resource` | The built library. Created by the build, not stored in git. |
+
+---
+
+## Development
+
+Install the dependencies:
 
 ```bash
-ng generate --help
+npm install
 ```
 
-## Building
-
-To build the project run:
+Build the library:
 
 ```bash
-ng build
+npm run build:lib
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Run the tests of the library once, in headless Chrome:
 
 ```bash
-ng test
+npm run test:lib
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+Run the demo application at `http://localhost:4200/`:
 
 ```bash
-ng e2e
+npm start
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+⚠️ The demo imports the library from `dist/my-http-resource`, so build the library before starting the demo, and build it again after you change the library.
 
-## Additional Resources
+---
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Publishing
+
+1. Change `version` in [`projects/my-http-resource/package.json`](projects/my-http-resource/package.json).
+2. Build the library and publish it from `dist/my-http-resource`:
+
+```bash
+npm run publish:lib
+```
+
+---
+
+## License
+
+[MIT](LICENSE)
