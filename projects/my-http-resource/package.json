@@ -1,6 +1,6 @@
 {
   "name": "my-http-resource",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Reactive Angular HttpClient wrapper with RxJS & Signals. Angular 17+.",
   "license": "MIT",
   "author": "Viktor Polyakov",
@@ -32,9 +32,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/consoleLogMyAss/my-http-resource.git",
+    "url": "git+https://github.com/viktor-poliakov/my-http-resource.git",
     "directory": "projects/my-http-resource"
   },
-  "homepage": "https://github.com/consoleLogMyAss/my-http-resource/tree/main/projects/my-http-resource#readme",
+  "homepage": "https://github.com/viktor-poliakov/my-http-resource/tree/main/projects/my-http-resource#readme",
   "sideEffects": false
 }
