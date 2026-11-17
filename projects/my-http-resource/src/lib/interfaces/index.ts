@@ -3,11 +3,6 @@ import { Observable, UnaryFunction } from 'rxjs';
 import { HttpOptions, TMethod, TNoInfer, TQueryParams, TUrlParams } from '../types';
 import { HttpErrorResponse } from '@angular/common/http';
 
-/**
- * @typeParam Method - what `fetch()` and `request$()` accept (Get, Post, ...).
- * @typeParam T - type of the response.
- * @typeParam V - type held by `value`: T when `initialValue` is set, T | null otherwise.
- */
 export interface IHttpResource<Method, T = any, V = T> {
   loading: Signal<boolean>,
   value: WritableSignal<V>,
@@ -24,12 +19,7 @@ export interface IBaseRequestData<T, M extends TMethod> {
   initialValue?: TNoInfer<T>;
   manual?: boolean;
   mergeValues?: boolean;
-  /**
-   * Whether a new `fetch()` cancels the request that is still in flight.
-   * Defaults to true for GET and to false for POST, PUT, PATCH and DELETE.
-   */
   cancelPrevious?: boolean;
-  /** Receives the raw response, so it may also convert it into T. */
   pipe?: UnaryFunction<Observable<any>, Observable<T>>;
   urlParams?: TUrlParams;
   options?: HttpOptions<M>;

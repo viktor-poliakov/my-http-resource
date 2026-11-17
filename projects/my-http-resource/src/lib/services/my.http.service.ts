@@ -27,7 +27,6 @@ import {
   TypeMethod
 } from '../types';
 
-/** A resource config and a per-call override, whatever the HTTP method. */
 type TRequestConfig<T> = IBaseRequestData<T, TMethod> & { body?: object; queryParams?: TQueryParams };
 type TFetchConfig = TFetchData<TMethod> & { body?: object; queryParams?: TQueryParams };
 
@@ -72,7 +71,6 @@ export class MyHttpService {
     });
   }
 
-  /** Later sources win per header name; names are compared case-insensitively. */
   private mergeHeaders(...sources: THeadersSource[]): HttpHeaders {
     let merged: HttpHeaders = new HttpHeaders();
 
@@ -97,7 +95,6 @@ export class MyHttpService {
       .request<T>(method, url, {
         body: config.body,
         params: config.queryParams,
-        // Options of the resource and of this call are merged key by key, headers of all levels are combined.
         ...data.options,
         ...fetchData?.options,
         headers: this.mergeHeaders(data.headers, data.options?.headers, fetchData?.options?.headers),
@@ -141,7 +138,6 @@ export class MyHttpService {
     method: TMethod,
     data: TRequestConfig<T>,
   ): IHttpResource<Method, T, T | null> {
-    // The cast only undoes TNoInfer, which stays unresolved while T is generic.
     const reactiveData: ReactiveHttpModel<T> = new ReactiveHttpModel(data.initialValue as T | undefined);
     const cancelPrevious: boolean = data.cancelPrevious ?? method === 'get';
 
@@ -149,7 +145,6 @@ export class MyHttpService {
     let lastRequest: Subscription | undefined;
 
     const fetch = (fetchData?: Method): void => {
-      // Built first: a broken config (e.g. a missing urlParams key) throws here, before any state changes.
       const request$: Observable<T> = this.createRequest(method, data, fetchData);
       const mergeValues: boolean | undefined = fetchData?.mergeValues ?? data.mergeValues;
 
@@ -162,7 +157,6 @@ export class MyHttpService {
 
       lastRequest = request$
         .pipe(
-          // Runs on success, error, cancellation and destroy, so loading can not get stuck.
           finalize(() => {
             if (--pendingRequests === 0) reactiveData.loading.set(false);
           })

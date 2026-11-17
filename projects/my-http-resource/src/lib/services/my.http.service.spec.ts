@@ -24,7 +24,6 @@ const item: IItem = { id: 1, name: 'first' };
 describe('myHttpResource', () => {
   let httpMock: HttpTestingController;
 
-  /** Creates a resource the way a service field initializer does: inside an injection context. */
   function create<R>(factory: (api: MyHttpService) => R): R {
     return TestBed.runInInjectionContext(() => factory(myHttpResource()));
   }
@@ -37,7 +36,6 @@ describe('myHttpResource', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  // Fails a test that leaves a request nobody looked at.
   afterEach(() => httpMock.verify());
 
   it('must be created in an injection context', () => {
@@ -135,7 +133,6 @@ describe('myHttpResource', () => {
       const boom = new Error('boom');
       const unhandled: unknown[] = [];
 
-      // rxjs reports an error thrown by a subscriber from a timer; catch it here instead of failing the run.
       rxjsConfig.onUnhandledError = (error: unknown) => unhandled.push(error);
 
       try {
@@ -524,10 +521,6 @@ describe('myHttpResource', () => {
     });
   });
 
-  /**
-   * These are checked by the compiler: a wrong type breaks the build of the tests,
-   * and an `@ts-expect-error` line that stops being an error does the same.
-   */
   describe('types', () => {
     type Equal<A, B> = (<X>() => X extends A ? 1 : 2) extends (<X>() => X extends B ? 1 : 2) ? true : false;
     type IsAny<T> = 0 extends 1 & T ? true : false;
@@ -549,7 +542,7 @@ describe('myHttpResource', () => {
       const list: IHttpResource<Get, IItem[]> = create((api) => api.get({ url: '', manual: true, initialValue: [] }));
       const nullable: IHttpResource<Post, IItem, IItem | null> = create((api) => api.post({ url: '', manual: true }));
       const loose: IHttpResource<Delete> = create((api) => api.delete({ url: '', manual: true }));
-      // @ts-expect-error without initialValue the value may be null
+      // @ts-expect-error
       const wrong: IHttpResource<Post, IItem> = create((api) => api.post<IItem>({ url: '', manual: true }));
 
       expect([list.value(), nullable.value(), loose.value(), wrong.value()]).toEqual([[], null, null, null]);
@@ -559,7 +552,7 @@ describe('myHttpResource', () => {
       const untyped = create((api) => api.get({ url: '', manual: true, initialValue: [] }));
       const stillAny: IsAny<ReturnType<typeof untyped.value>> = true;
 
-      // @ts-expect-error {} is not an IItem
+      // @ts-expect-error
       create((api) => api.get<IItem>({ url: '', manual: true, initialValue: {} }));
 
       expect(stillAny).toBeTrue();
@@ -572,9 +565,9 @@ describe('myHttpResource', () => {
       const patch: IsAny<NonNullable<IPatchRequest<unknown>['options']>> = false;
 
       create((api) => api.post({ url: '', manual: true, options: { withCredentials: true } }));
-      // @ts-expect-error withCredentials is a boolean
+      // @ts-expect-error
       create((api) => api.post({ url: '', manual: true, options: { withCredentials: 'yes' } }));
-      // @ts-expect-error there is no such option
+      // @ts-expect-error
       create((api) => api.put({ url: '', manual: true, options: { nope: true } }));
 
       expect([post, put, patch]).toEqual([false, false, false]);
@@ -584,7 +577,7 @@ describe('myHttpResource', () => {
       const resource = create((api) => api.get<IItem>({ url: '/items', manual: true }));
 
       resource.fetch({ queryParams: { a: 1 }, mergeValues: true, options: { withCredentials: true } });
-      // @ts-expect-error GET has no body
+      // @ts-expect-error
       resource.fetch({ body: {} });
 
       expect(httpMock.match('/items?a=1').length).toBe(1);

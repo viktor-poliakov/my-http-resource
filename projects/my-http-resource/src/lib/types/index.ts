@@ -11,18 +11,10 @@ export type TUrlParams = {
 export type TMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type TMethodWithBody = 'post' | 'put' | 'patch';
 
-/**
- * Options of the matching HttpClient method. For post/put/patch they are the
- * third parameter (the second one is the body), for get/delete the second.
- */
 export type HttpOptions<M extends TMethod> = M extends TMethodWithBody
   ? Parameters<HttpClient[M]>[2]
   : Parameters<HttpClient[M]>[1];
 
-/**
- * Keeps a property from being used to infer T, so that `initialValue: []`
- * does not turn T into never[]. Same job as the built-in NoInfer, which needs TS 5.4+.
- */
 export type TNoInfer<T> = [T][T extends any ? 0 : never];
 
 export type TFetchData<M extends TMethod> = {

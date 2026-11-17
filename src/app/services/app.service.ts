@@ -23,12 +23,6 @@ export interface IStatistic {
   providedIn: 'root'
 })
 export class AppService {
-  /**
-   * last-day
-   * last-week
-   * last-month
-   * yyyy-mm-dd
-   */
   public statisticDownloads = myHttpResource().get<IStatistic>({
     url: 'https://api.npmjs.org/downloads/point/last-day/my-http-resource',
   })
