@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { AppService, testPost } from './services/app.service';
 import { forkJoin } from 'rxjs';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpContext} from '@angular/common/http';
 
 export interface IPost {
   postId: number;
@@ -29,7 +29,8 @@ export class App {
       },
       options: {
         headers: {
-          'lololol': 'SOCCER'
+          'lololol': 'SOCCER',
+          'pops': 'pips'
         }
       }
     });

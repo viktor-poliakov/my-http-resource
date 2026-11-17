@@ -31,7 +31,6 @@ export class AppService {
    */
   public statisticDownloads = myHttpResource().get<IStatistic>({
     url: 'https://api.npmjs.org/downloads/point/last-day/my-http-resource',
-    initialValue: {},
   })
 
   public posts = myHttpResource().get<IPost[]>({
@@ -67,7 +66,7 @@ export class AppService {
     console.log(error);
   }
 
-  public sendPost: IHttpResource<Post, IPost> = myHttpResource().post({
+  public sendPost: IHttpResource<Post, IPost, IPost | null> = myHttpResource().post({
     url:'https://jsonplaceholder.typicode.com/posts',
     manual: true,
     pipe: pipe(delay(1000)),
@@ -84,7 +83,7 @@ export class AppService {
     this.posts.value.update((v: IPost[]) => [...v, data])
   }
 
-  public updatePost: IHttpResource<Put, IPost> = myHttpResource().put({
+  public updatePost: IHttpResource<Put, IPost, IPost | null> = myHttpResource().put({
     url:'https://jsonplaceholder.typicode.com/posts/{{postId}}',
     urlParams: { postId: 1 },
     manual: true,

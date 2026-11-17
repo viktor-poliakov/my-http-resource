@@ -1,61 +1,44 @@
 import { DestroyRef, inject } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable } from 'rxjs';
+import { finalize, Observable, Subscription } from 'rxjs';
 
 import {
+  IBaseRequestData,
   IDeleteRequest,
   IGetRequest,
   IHttpResource,
   IPatchRequest,
   IPostRequest,
   IPutRequest,
-  IRequest
 } from '../interfaces';
-import { ReactiveHttpModel} from '../model/reactive.http.model';
+import { ReactiveHttpModel } from '../model/reactive.http.model';
 import {
   Delete,
   Get,
   Patch,
   Post,
   Put,
+  TFetchData,
   TMethod,
-  TMethodWithoutBody,
-  TMethodFnWithBody,
-  TOptionsData,
-  TResult,
-  TUrlParams, TypeMethod
+  TNoInfer,
+  TQueryParams,
+  TUrlParams,
+  TypeMethod
 } from '../types';
-import { ParamsModel } from '../model/params.model';
+
+/** A resource config and a per-call override, whatever the HTTP method. */
+type TRequestConfig<T> = IBaseRequestData<T, TMethod> & { body?: object; queryParams?: TQueryParams };
+type TFetchConfig = TFetchData<TMethod> & { body?: object; queryParams?: TQueryParams };
+
+type TWithInitialValue<T> = { initialValue: TNoInfer<T> };
+type THeadersSource = HttpHeaders | Record<string, string | number | (string | number)[]> | undefined;
 
 export class MyHttpService {
   private http: HttpClient = inject(HttpClient);
   private destroyRef: DestroyRef = inject(DestroyRef);
 
-  private getAfterActions<T>(reactiveData: ReactiveHttpModel<T>, data: IRequest<T>): TResult<T> {
-    return {
-      next: (result: T): void => {
-        const value: T = data.mergeValues
-          ? this.mergeResult(result, reactiveData.value())
-          : result
-
-        reactiveData.value.set(value);
-
-        if (data.afterSuccess) data.afterSuccess(value);
-
-        reactiveData.loading.set(false);
-      },
-      error: (error: HttpErrorResponse) => {
-        reactiveData.error.set(error)
-
-        if (data.afterError) data.afterError(error);
-
-        reactiveData.loading.set(false);
-      },
-    }
-  }
-
-  private mergeResult<T>(result: T, currentValue: T): T {
+  private mergeResult<T>(result: T, currentValue: T | null): T {
     if (!result || !currentValue || typeof result !== typeof currentValue ) {
       return result;
     }
@@ -76,10 +59,10 @@ export class MyHttpService {
     return result;
   }
 
-  private createUrl(url: string, urlParams: TUrlParams): string {
-    return url.replace(/{{(.*?)}}/g, (_, key) => {
+  private createUrl(url: string, urlParams?: TUrlParams): string {
+    return url.replace(/{{(.*?)}}/g, (_: string, key: string) => {
       const trimmedKey: string = key.trim();
-      const value: string | number = urlParams?.[trimmedKey];
+      const value: string | number | undefined = urlParams?.[trimmedKey];
 
       if (value === undefined) {
         throw new Error(`Missing value for URL parameter: ${trimmedKey}`);
@@ -89,84 +72,127 @@ export class MyHttpService {
     });
   }
 
-  private createConfigForWithOutBody(paramsModel: Partial<TOptionsData>): any {
-    const config: Partial<TOptionsData> = {
-      params: paramsModel.params,
-      headers: paramsModel.headers,
+  /** Later sources win per header name; names are compared case-insensitively. */
+  private mergeHeaders(...sources: THeadersSource[]): HttpHeaders {
+    let merged: HttpHeaders = new HttpHeaders();
+
+    for (const source of sources) {
+      if (!source) continue;
+
+      const headers: HttpHeaders = source instanceof HttpHeaders ? source : new HttpHeaders(source);
+
+      for (const name of headers.keys()) {
+        merged = merged.set(name, headers.getAll(name) ?? []);
+      }
     }
 
-    if (Object.keys(paramsModel.body).length > 0) {
-      config.body = paramsModel.body;
-    }
-
-    return {...config, ...paramsModel.options };
+    return merged;
   }
 
-  private getHttp<T>(method: TMethod, data: IRequest<T>): Observable<T> {
-    const url: string = this.createUrl(data.url, data.urlParams);
-    const paramsModel: Partial<TOptionsData> = new ParamsModel(data);
-    const { body, headers, options }: Partial<TOptionsData> = paramsModel;
-    const isWithoutBody: boolean = ['get', 'delete'].includes(method);
+  private createRequest<T>(method: TMethod, data: TRequestConfig<T>, fetchData?: TFetchConfig): Observable<T> {
+    const config: TRequestConfig<T> = { ...data, ...fetchData };
+    const url: string = this.createUrl(config.url, config.urlParams);
 
-    const request$: Observable<T> = isWithoutBody
-      ? (this.http[method] as TMethodWithoutBody<T>)(url, this.createConfigForWithOutBody(paramsModel))
-      : (this.http[method] as TMethodFnWithBody<T>)(url, body, { headers, ...options });
+    const request$: Observable<T> = this.http
+      .request<T>(method, url, {
+        body: config.body,
+        params: config.queryParams,
+        // Options of the resource and of this call are merged key by key, headers of all levels are combined.
+        ...data.options,
+        ...fetchData?.options,
+        headers: this.mergeHeaders(data.headers, data.options?.headers, fetchData?.options?.headers),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef));
 
-    const baseRequest: Observable<T> = request$.pipe(takeUntilDestroyed(this.destroyRef));
-
-    return data.pipe ? baseRequest.pipe(data.pipe) : baseRequest;
+    return config.pipe ? request$.pipe(config.pipe) : request$;
   }
 
-  public get<T = any>(data: IGetRequest<T>): IHttpResource<Get, T> {
-    return this.createResource<T, IGetRequest<T>, Get>(data, 'get');
+  public get<T = any>(data: IGetRequest<T> & TWithInitialValue<T>): IHttpResource<Get, T>;
+  public get<T = any>(data: IGetRequest<T>): IHttpResource<Get, T, T | null>;
+  public get<T = any>(data: IGetRequest<T>): IHttpResource<Get, T, T | null> {
+    return this.createResource<T, Get>('get', data);
   }
 
-  public post<T = any>(data: IPostRequest<T>): IHttpResource<Post, T> {
-    return this.createResource<T, IPostRequest<T>, Post>(data, 'post');
+  public post<T = any>(data: IPostRequest<T> & TWithInitialValue<T>): IHttpResource<Post, T>;
+  public post<T = any>(data: IPostRequest<T>): IHttpResource<Post, T, T | null>;
+  public post<T = any>(data: IPostRequest<T>): IHttpResource<Post, T, T | null> {
+    return this.createResource<T, Post>('post', data);
   }
 
-  public patch<T = any>(data: IPatchRequest<T>): IHttpResource<Patch, T> {
-    return this.createResource<T, IPatchRequest<T>, Patch>(data, 'patch');
+  public patch<T = any>(data: IPatchRequest<T> & TWithInitialValue<T>): IHttpResource<Patch, T>;
+  public patch<T = any>(data: IPatchRequest<T>): IHttpResource<Patch, T, T | null>;
+  public patch<T = any>(data: IPatchRequest<T>): IHttpResource<Patch, T, T | null> {
+    return this.createResource<T, Patch>('patch', data);
   }
 
-  public put<T = any>(data: IPutRequest<T>): IHttpResource<Put, T> {
-    return this.createResource<T, IPutRequest<T>, Put>(data, 'put');
+  public put<T = any>(data: IPutRequest<T> & TWithInitialValue<T>): IHttpResource<Put, T>;
+  public put<T = any>(data: IPutRequest<T>): IHttpResource<Put, T, T | null>;
+  public put<T = any>(data: IPutRequest<T>): IHttpResource<Put, T, T | null> {
+    return this.createResource<T, Put>('put', data);
   }
 
-  public delete<T = any>(data: IDeleteRequest<T>): IHttpResource<Delete, T> {
-    return this.createResource<T, IDeleteRequest<T>, Delete>(data, 'delete');
+  public delete<T = any>(data: IDeleteRequest<T> & TWithInitialValue<T>): IHttpResource<Delete, T>;
+  public delete<T = any>(data: IDeleteRequest<T>): IHttpResource<Delete, T, T | null>;
+  public delete<T = any>(data: IDeleteRequest<T>): IHttpResource<Delete, T, T | null> {
+    return this.createResource<T, Delete>('delete', data);
   }
 
-  private createResource<T, Req extends IRequest<T>, Method extends TypeMethod>(
-    data: Req,
+  private createResource<T, Method extends TypeMethod>(
     method: TMethod,
-  ): IHttpResource<Method, T> {
-    const reactiveData: ReactiveHttpModel<T> = new ReactiveHttpModel(data.initialValue);
+    data: TRequestConfig<T>,
+  ): IHttpResource<Method, T, T | null> {
+    // The cast only undoes TNoInfer, which stays unresolved while T is generic.
+    const reactiveData: ReactiveHttpModel<T> = new ReactiveHttpModel(data.initialValue as T | undefined);
+    const cancelPrevious: boolean = data.cancelPrevious ?? method === 'get';
 
-    if (!data.manual) {
+    let pendingRequests: number = 0;
+    let lastRequest: Subscription | undefined;
+
+    const fetch = (fetchData?: Method): void => {
+      // Built first: a broken config (e.g. a missing urlParams key) throws here, before any state changes.
+      const request$: Observable<T> = this.createRequest(method, data, fetchData);
+      const mergeValues: boolean | undefined = fetchData?.mergeValues ?? data.mergeValues;
+
+      pendingRequests++;
+
+      if (cancelPrevious) lastRequest?.unsubscribe();
+
+      reactiveData.error.set(null);
       reactiveData.loading.set(true);
 
-      this.getHttp(method, data).subscribe(
-        this.getAfterActions(reactiveData, data)
-      );
-    }
+      lastRequest = request$
+        .pipe(
+          // Runs on success, error, cancellation and destroy, so loading can not get stuck.
+          finalize(() => {
+            if (--pendingRequests === 0) reactiveData.loading.set(false);
+          })
+        )
+        .subscribe({
+          next: (result: T): void => {
+            const value: T = mergeValues
+              ? this.mergeResult(result, reactiveData.value())
+              : result
+
+            reactiveData.value.set(value);
+
+            if (data.afterSuccess) data.afterSuccess(value);
+          },
+          error: (error: HttpErrorResponse): void => {
+            reactiveData.error.set(error);
+
+            if (data.afterError) data.afterError(error);
+          },
+        });
+    };
+
+    if (!data.manual) fetch();
 
     return {
       value: reactiveData.value,
       error: reactiveData.error,
       loading: reactiveData.loading.asReadonly(),
-      request$: (fetchData: Method) => {
-        return this.getHttp(method, {...data, ...fetchData})
-      } ,
-      fetch: (fetchData: Method) => {
-        reactiveData.loading.set(true);
-
-        const mergedData: Req & Method = {  ...data, ...fetchData };
-
-        this.getHttp(method, mergedData).subscribe(
-          this.getAfterActions(reactiveData, mergedData)
-        );
-      }
+      request$: (fetchData?: Method): Observable<T> => this.createRequest(method, data, fetchData),
+      fetch,
     }
   }
 }

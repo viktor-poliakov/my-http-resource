@@ -1,5 +1,4 @@
-import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 
 export type TQueryParams = {
   [key: string]: string | number | boolean;
@@ -9,12 +8,22 @@ export type TUrlParams = {
   [key: string]: string | number;
 }
 
-export type TOptionsData = {
-  params: TQueryParams;
-  body: object;
-  headers: object;
-  options: object
-}
+export type TMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
+export type TMethodWithBody = 'post' | 'put' | 'patch';
+
+/**
+ * Options of the matching HttpClient method. For post/put/patch they are the
+ * third parameter (the second one is the body), for get/delete the second.
+ */
+export type HttpOptions<M extends TMethod> = M extends TMethodWithBody
+  ? Parameters<HttpClient[M]>[2]
+  : Parameters<HttpClient[M]>[1];
+
+/**
+ * Keeps a property from being used to infer T, so that `initialValue: []`
+ * does not turn T into never[]. Same job as the built-in NoInfer, which needs TS 5.4+.
+ */
+export type TNoInfer<T> = [T][T extends any ? 0 : never];
 
 export type TFetchData<M extends TMethod> = {
   urlParams?: TUrlParams,
@@ -43,15 +52,4 @@ export type Put = {
   body?: object;
 } & TFetchData<'put'>;
 
-export type TResult<U> = {
-  next: (result: U) => void;
-  error: (error: HttpErrorResponse) => void;
-}
-
-export type TMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type TypeMethod = Get | Patch | Put | Post | Delete;
-export type HttpOptions<M extends TMethod> = Parameters<HttpClient[M]>[1];
-
-export type TMethodWithoutBody<T> = (u: string, o?: any) => Observable<T>
-export type TMethodFnWithBody<T> = (u: string, o: object, h: object) => Observable<T>
-

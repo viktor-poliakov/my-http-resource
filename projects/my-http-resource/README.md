@@ -17,7 +17,7 @@
 - You create a “resource” once (e.g., posts, sendPost, updatePost, etc.) with all its settings.
 - A resource always includes:
   * `loading: Signal<boolean>`
-  * `value: WritableSignal<T>`
+  * `value: WritableSignal<T>` — or `WritableSignal<T | null>` when no `initialValue` is set, because the value is `null` until the first response.
   * `error: WritableSignal<unknown>`
   * `fetch(fetchData?)` — executes the request immediately and updates signals.
   * `request$(fetchData?)` — returns an `Observable<T>` without side effects.
@@ -436,20 +436,52 @@ data.fetch({
 ### 8. Three Ways to Make a Request
 
 - Automatic request when `manual = false`. This does not prevent you from later calling `fetch()` or `request()`.
-- `fetch(fetchData?)` — makes a request, automatically sets `loading = true`, puts the result into `value`, and the error into `error`.
+- `fetch(fetchData?)` — makes a request, automatically sets `loading = true`, clears the previous `error`, puts the result into `value`, and the error into `error`.
 - `request$(fetchData?)` — returns an `Observable<T>` without side effects. Handy for compositions (forkJoin, switchMap, etc.). The state in signals does not change unless you update it yourself.
 
 ### 9. State Management
 
 Every resource provides:
-- `loading()` — true / false.
-- `value()` — current value (you can set/update).
-- `error()` — HttpErrorResponse | unknown (you can set/update).
+- `loading()` — true / false. Stays `true` until every request started by `fetch()` has finished.
+- `value()` — current value (you can set/update). It is `null` until the first response unless you set `initialValue`.
+- `error()` — HttpErrorResponse | unknown (you can set/update). It is reset to `null` when a new `fetch()` starts.
 
 Example of manually updating the value:
 
 ````ts
 resource.value.update(prev => [...prev, newItem]);
+````
+
+### 10. Repeated `fetch()` calls
+
+- **GET** — a new `fetch()` cancels the request that is still in flight, so an older response can never overwrite a newer one.
+- **POST / PUT / PATCH / DELETE** — requests run side by side, and `afterSuccess` / `afterError` fire for each of them.
+- Use `cancelPrevious` to change the default, for example for a search that is sent with POST:
+
+````ts
+public search = myHttpResource().post<IData[]>({
+  url: '/api/search',
+  manual: true,
+  initialValue: [],
+  cancelPrevious: true, // only the latest search is applied
+});
+````
+
+### 11. Headers and options
+
+- `options` of the resource and `options` passed to `fetch()` / `request$()` are merged key by key, so a call-time option does not drop the resource-level ones.
+- Headers of all levels are combined: `headers` → `options.headers` of the resource → `options.headers` of the call. For the same header name the later one wins.
+
+````ts
+public data = myHttpResource().get<IData>({
+  url: '/api/items',
+  manual: true,
+  headers: { Authorization: 'token' },
+  options: { withCredentials: true },
+});
+
+// Sends Authorization, X-Trace-Id and withCredentials: true.
+data.fetch({ options: { headers: { 'X-Trace-Id': 'abc-123' } } });
 ````
 ---
 
@@ -457,14 +489,23 @@ resource.value.update(prev => [...prev, newItem]);
 
 * `Get/Delete → { queryParams?, urlParams? }`
 * `Post/Patch/Put → { body?, urlParams? }`
-* `IHttpResource<Method>`:
+* `IHttpResource<Method, T, V = T>`:
   * `loading: Signal<boolean>`
-  * `value: WritableSignal<any>`
+  * `value: WritableSignal<V>`
   * `error: WritableSignal<unknown>`
-  * `fetch(fetData?: Method): void`
-  * `request$(fetData?: Method): Observable<any>`
+  * `fetch(fetchData?: Method): void`
+  * `request$(fetchData?: Method): Observable<T>`
 
 The generic T in get<T>() / post<T>() / ... is the type of the expected response.
+
+`V` is the type held by `value`. With `initialValue` it equals `T`; without it the value starts as `null`, so `V` is `T | null`. The simplest way is to let TypeScript infer the type. If you annotate the field, spell it out:
+
+```ts
+public posts = myHttpResource().get<IPost[]>({ url: '/api/posts', initialValue: [] });
+// IHttpResource<Get, IPost[]>
+
+public sendPost: IHttpResource<Post, IPost, IPost | null> = myHttpResource().post({ url: '/api/posts', manual: true });
+```
 
 ---
 

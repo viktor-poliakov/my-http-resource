@@ -1,14 +1,19 @@
 import { Signal, WritableSignal } from '@angular/core';
 import { Observable, UnaryFunction } from 'rxjs';
-import { HttpOptions, TMethod, TQueryParams, TUrlParams } from '../types';
+import { HttpOptions, TMethod, TNoInfer, TQueryParams, TUrlParams } from '../types';
 import { HttpErrorResponse } from '@angular/common/http';
 
-export interface IHttpResource<Method, T = any> {
+/**
+ * @typeParam Method - what `fetch()` and `request$()` accept (Get, Post, ...).
+ * @typeParam T - type of the response.
+ * @typeParam V - type held by `value`: T when `initialValue` is set, T | null otherwise.
+ */
+export interface IHttpResource<Method, T = any, V = T> {
   loading: Signal<boolean>,
-  value: WritableSignal<T>,
+  value: WritableSignal<V>,
   error: WritableSignal<unknown>,
-  fetch: (fetData?: Method) => void,
-  request$: (fetData?: Method) => Observable<any>,
+  fetch: (fetchData?: Method) => void,
+  request$: (fetchData?: Method) => Observable<T>,
 }
 
 export interface IBaseRequestData<T, M extends TMethod> {
@@ -16,10 +21,16 @@ export interface IBaseRequestData<T, M extends TMethod> {
   afterSuccess?: (data: T) => void;
   afterError?: (error: HttpErrorResponse) => void;
   headers?: Record<string, string | number>
-  initialValue?: any
+  initialValue?: TNoInfer<T>;
   manual?: boolean;
   mergeValues?: boolean;
-  pipe?: UnaryFunction<Observable<T>, Observable<T>>;
+  /**
+   * Whether a new `fetch()` cancels the request that is still in flight.
+   * Defaults to true for GET and to false for POST, PUT, PATCH and DELETE.
+   */
+  cancelPrevious?: boolean;
+  /** Receives the raw response, so it may also convert it into T. */
+  pipe?: UnaryFunction<Observable<any>, Observable<T>>;
   urlParams?: TUrlParams;
   options?: HttpOptions<M>;
 }
